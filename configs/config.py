@@ -29,7 +29,7 @@ ENV = _detect_env()
 # ----------------------------------------------------------------------------
 if ENV == "kaggle":
     # The official competition dataset is mounted read-only here.
-    RAW_DIR    = Path("/kaggle/input/amex-default-prediction")
+    RAW_DIR    = Path("/kaggle/input/competitions/amex-default-prediction")
     # /kaggle/working is the only writable dir and becomes the notebook output.
     OUTPUT_DIR = Path("/kaggle/working")
 else:
