@@ -41,24 +41,27 @@ import pyarrow.parquet as pq
 
 # ---------------------------------------------------------------------------
 def land_csv_to_parquet(csv_path: Path, prefix: str) -> None:
-    """Stream a big CSV to compressed Parquet chunks (slide: chunk = 500k)."""
+    """Use read_parquet directly on the CSV (Kaggle optimized)."""
     if not csv_path.exists():
-        raise FileNotFoundError(
-            f"{csv_path} not found. Download the AMEX dataset into {C.RAW_DIR} "
-            f"(or run on Kaggle where it is mounted at /kaggle/input)."
-        )
-    C.banner(f"LANDING {csv_path.name} -> Parquet (chunk={C.CHUNK_SIZE:,})")
-    t0 = time.time()
-    reader = pd.read_csv(csv_path, chunksize=C.CHUNK_SIZE)
-    for i, chunk in enumerate(reader):
-        chunk[C.ID_COL] = compress_customer_id(chunk[C.ID_COL])
-        if C.DATE_COL in chunk.columns:
-            chunk[C.DATE_COL] = pd.to_datetime(chunk[C.DATE_COL])
+        raise FileNotFoundError(f"{csv_path} not found.")
+    
+    C.banner(f"LANDING {csv_path.name} -> Parquet")
+    # Just read and write directly with minimal processing
+    df = pd.read_csv(csv_path, dtype={'customer_ID': 'object'})
+    df[C.ID_COL] = compress_customer_id(df[C.ID_COL])
+    if C.DATE_COL in df.columns:
+        df[C.DATE_COL] = pd.to_datetime(df[C.DATE_COL])
+    
+    # Split into 4 chunks and save
+    n = len(df) // 4
+    for i in range(4):
+        s = i * n
+        e = (i + 1) * n if i < 3 else len(df)
+        chunk = df.iloc[s:e].copy()
         chunk = reduce_mem_usage(chunk, verbose=False)
         out = C.PARQUET_DIR / f"{prefix}_{i:04d}.parquet"
         chunk.to_parquet(out, engine="pyarrow", compression=None, index=False)
-        print(f"   chunk {i:>3}: {len(chunk):>7,} rows -> {out.name}")
-    print(f"   done in {time.time()-t0:.1f}s")
+        print(f"   chunk {i}: {len(chunk):,} rows -> {out.name}")
 
 
 def load_parquet(prefix: str) -> pd.DataFrame:
