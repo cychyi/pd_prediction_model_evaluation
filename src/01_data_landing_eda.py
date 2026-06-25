@@ -56,7 +56,7 @@ def land_csv_to_parquet(csv_path: Path, prefix: str) -> None:
             chunk[C.DATE_COL] = pd.to_datetime(chunk[C.DATE_COL])
         chunk = reduce_mem_usage(chunk, verbose=False)
         out = C.PARQUET_DIR / f"{prefix}_{i:04d}.parquet"
-        chunk.to_parquet(out, engine="pyarrow", compression="zstd", index=False)
+        chunk.to_parquet(out, engine="pyarrow", compression=None, index=False)
         print(f"   chunk {i:>3}: {len(chunk):>7,} rows -> {out.name}")
     print(f"   done in {time.time()-t0:.1f}s")
 
