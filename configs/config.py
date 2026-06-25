@@ -83,7 +83,7 @@ DROP_FEATURES = ["D_87"]
 # ----------------------------------------------------------------------------
 # 3. PIPELINE CONSTANTS
 # ----------------------------------------------------------------------------
-CHUNK_SIZE        = 500_000   # rows per parquet chunk (matches the slide)
+CHUNK_SIZE        = 100_000   # rows per parquet chunk (matches the slide)
 MISSING_THRESHOLD = 0.90      # drop columns with > 90% missing
 DENOISE_SCALE     = 100       # multiply numeric features by 100, then round
 MAX_SEQ_LEN       = 13        # statements per customer (AMEX has up to 13)
