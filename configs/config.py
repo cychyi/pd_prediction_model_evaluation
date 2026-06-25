@@ -86,7 +86,7 @@ DROP_FEATURES = ["D_87"]
 CHUNK_SIZE        = 100_000   # rows per parquet chunk (matches the slide)
 MISSING_THRESHOLD = 0.90      # drop columns with > 90% missing
 DENOISE_SCALE     = 100       # multiply numeric features by 100, then round
-MAX_SEQ_LEN       = 13        # statements per customer (AMEX has up to 13)
+MAX_SEQ_LEN       = 6        # statements per customer (AMEX has up to 13)
 CORR_THRESHOLD    = 0.95      # drop one of any feature pair above this
 RANDOM_STATE      = 42
 
