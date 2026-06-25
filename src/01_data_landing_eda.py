@@ -41,31 +41,41 @@ import pyarrow.parquet as pq
 
 # ---------------------------------------------------------------------------
 def land_csv_to_parquet(csv_path: Path, prefix: str) -> None:
-    """Stream CSV to Parquet with progress bar."""
+    """Use Polars for memory-efficient CSV streaming."""
     if not csv_path.exists():
         raise FileNotFoundError(f"{csv_path} not found.")
     
     C.banner(f"LANDING {csv_path.name} -> Parquet (chunk={C.CHUNK_SIZE:,})")
     
     try:
-        from tqdm import tqdm
+        import polars as pl
     except:
-        print("   Installing tqdm for progress...")
+        print("Installing polars...")
         import subprocess
-        subprocess.run(['pip', 'install', 'tqdm', '-q'], check=True)
-        from tqdm import tqdm
+        subprocess.run(['pip', 'install', 'polars', '-q'], check=True)
+        import polars as pl
     
     t0 = time.time()
-    reader = pd.read_csv(csv_path, chunksize=C.CHUNK_SIZE)
     
-    for i, chunk in enumerate(tqdm(reader, desc="Converting to Parquet")):
-        chunk[C.ID_COL] = compress_customer_id(chunk[C.ID_COL])
-        if C.DATE_COL in chunk.columns:
-            chunk[C.DATE_COL] = pd.to_datetime(chunk[C.DATE_COL])
-        chunk = reduce_mem_usage(chunk, verbose=False)
+    # Polars can stream large CSVs efficiently
+    df = pl.read_csv(csv_path)
+    
+    # Split into chunks
+    n_chunks = (len(df) + C.CHUNK_SIZE - 1) // C.CHUNK_SIZE
+    for i in range(n_chunks):
+        s = i * C.CHUNK_SIZE
+        e = min((i + 1) * C.CHUNK_SIZE, len(df))
+        chunk = df.slice(s, e - s)
+        
+        # Convert to pandas for processing
+        chunk_pd = chunk.to_pandas()
+        chunk_pd[C.ID_COL] = compress_customer_id(chunk_pd[C.ID_COL])
+        if C.DATE_COL in chunk_pd.columns:
+            chunk_pd[C.DATE_COL] = pd.to_datetime(chunk_pd[C.DATE_COL])
+        
         out = C.PARQUET_DIR / f"{prefix}_{i:04d}.parquet"
-        chunk.to_parquet(out, engine="pyarrow", compression=None, index=False)
-        print(f"   ✓ chunk {i:>3}: {len(chunk):>7,} rows -> {out.name}")
+        chunk_pd.to_parquet(out, engine="pyarrow", compression=None, index=False)
+        print(f"   ✓ chunk {i:>3}: {len(chunk_pd):>7,} rows -> {out.name}")
     
     print(f"   done in {time.time()-t0:.1f}s")
 
