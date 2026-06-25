@@ -94,50 +94,27 @@ def run_eda(df: pd.DataFrame, labels: pd.DataFrame) -> None:
     C.banner("EDA")
     feature_cols = [c for c in df.columns if c not in (C.ID_COL, C.DATE_COL)]
 
-    # 1) Missing rate per feature.
-    missing = (df[feature_cols].isna().mean()
+    # 1) Missing rate per feature (sample to save memory)
+    sample = df[feature_cols].sample(min(100_000, len(df)), random_state=42)
+    missing = (sample.isna().mean()
                .sort_values(ascending=False)
                .rename("missing_rate").to_frame())
     missing["n_unique"] = [df[c].nunique(dropna=True) for c in missing.index]
     missing["flag_drop"] = (missing["missing_rate"] > C.MISSING_THRESHOLD) | (missing["n_unique"] <= 1)
     missing.to_csv(C.REPORT_DIR / "eda_missing.csv")
-    print(f"   features with >90% missing : "
-          f"{(missing['missing_rate'] > C.MISSING_THRESHOLD).sum()}")
+    print(f"   features with >90% missing : {(missing['missing_rate'] > C.MISSING_THRESHOLD).sum()}")
     print(f"   constant features (nunique<=1): {(missing['n_unique'] <= 1).sum()}")
     print(f"   total flagged for drop        : {missing['flag_drop'].sum()}")
 
-    # 2) Descriptive statistics (mean/std/min/max/percentiles).
-    num_cols = df[feature_cols].select_dtypes(include=[np.number]).columns
-    desc = df[num_cols].describe(percentiles=[.05, .25, .5, .75, .95]).T
-    desc.to_csv(C.REPORT_DIR / "eda_describe.csv")
-    print(f"   describe() written for {len(num_cols)} numeric features")
-
-    # 3) Feature-family summary (P / B / S / R / D).
-    fam_rows = []
-    for prefix, name in C.FEATURE_PREFIXES.items():
-        cols = [c for c in feature_cols if c.startswith(prefix + "_")]
-        if cols:
-            fam_rows.append({
-                "prefix": prefix, "family": name, "n_features": len(cols),
-                "avg_missing_rate": df[cols].isna().mean().mean(),
-            })
-    pd.DataFrame(fam_rows).to_csv(C.REPORT_DIR / "eda_feature_families.csv", index=False)
-    for r in fam_rows:
-        print(f"   {r['prefix']} ({r['family']:<11}): {r['n_features']:>3} features, "
-              f"avg missing {r['avg_missing_rate']:.2%}")
-
-    # 4) Target balance.
+    # 2) Target balance
     bal = labels[C.TARGET_COL].value_counts().rename("count").to_frame()
     bal["pct"] = bal["count"] / bal["count"].sum()
     bal.to_csv(C.REPORT_DIR / "eda_target_balance.csv")
-    print(f"   target balance: good(0)={bal.loc[0,'count']:,} "
-          f"bad(1)={bal.loc[1,'count']:,} "
-          f"bad-rate={bal.loc[1,'pct']:.2%}")
+    print(f"   target balance: good(0)={bal.loc[0,'count']:,} bad(1)={bal.loc[1,'count']:,} bad-rate={bal.loc[1,'pct']:.2%}")
 
-    # 5) Statements-per-customer distribution (justifies MAX_SEQ_LEN=13).
+    # 3) Statements-per-customer
     counts = df.groupby(C.ID_COL).size()
-    print(f"   statements/customer: min={counts.min()} "
-          f"median={int(counts.median())} max={counts.max()}")
+    print(f"   statements/customer: min={counts.min()} median={int(counts.median())} max={counts.max()}")
 
 
 # ---------------------------------------------------------------------------
