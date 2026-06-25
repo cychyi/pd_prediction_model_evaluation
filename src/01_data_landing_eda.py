@@ -41,27 +41,33 @@ import pyarrow.parquet as pq
 
 # ---------------------------------------------------------------------------
 def land_csv_to_parquet(csv_path: Path, prefix: str) -> None:
-    """Use read_parquet directly on the CSV (Kaggle optimized)."""
+    """Stream CSV to Parquet with progress bar."""
     if not csv_path.exists():
         raise FileNotFoundError(f"{csv_path} not found.")
     
-    C.banner(f"LANDING {csv_path.name} -> Parquet")
-    # Just read and write directly with minimal processing
-    df = pd.read_csv(csv_path, dtype={'customer_ID': 'object'})
-    df[C.ID_COL] = compress_customer_id(df[C.ID_COL])
-    if C.DATE_COL in df.columns:
-        df[C.DATE_COL] = pd.to_datetime(df[C.DATE_COL])
+    C.banner(f"LANDING {csv_path.name} -> Parquet (chunk={C.CHUNK_SIZE:,})")
     
-    # Split into 4 chunks and save
-    n = len(df) // 4
-    for i in range(4):
-        s = i * n
-        e = (i + 1) * n if i < 3 else len(df)
-        chunk = df.iloc[s:e].copy()
+    try:
+        from tqdm import tqdm
+    except:
+        print("   Installing tqdm for progress...")
+        import subprocess
+        subprocess.run(['pip', 'install', 'tqdm', '-q'], check=True)
+        from tqdm import tqdm
+    
+    t0 = time.time()
+    reader = pd.read_csv(csv_path, chunksize=C.CHUNK_SIZE)
+    
+    for i, chunk in enumerate(tqdm(reader, desc="Converting to Parquet")):
+        chunk[C.ID_COL] = compress_customer_id(chunk[C.ID_COL])
+        if C.DATE_COL in chunk.columns:
+            chunk[C.DATE_COL] = pd.to_datetime(chunk[C.DATE_COL])
         chunk = reduce_mem_usage(chunk, verbose=False)
         out = C.PARQUET_DIR / f"{prefix}_{i:04d}.parquet"
         chunk.to_parquet(out, engine="pyarrow", compression=None, index=False)
-        print(f"   chunk {i}: {len(chunk):,} rows -> {out.name}")
+        print(f"   ✓ chunk {i:>3}: {len(chunk):>7,} rows -> {out.name}")
+    
+    print(f"   done in {time.time()-t0:.1f}s")
 
 
 def load_parquet(prefix: str) -> pd.DataFrame:
